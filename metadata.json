@@ -1,0 +1,5 @@
+{
+  "name": "TranspoAudio AI",
+  "description": "Aplikacja webowa do transpozycji muzyki (zmiana tonacji) oraz zmiany tempa plików MP3, wspomagana analizą AI od Google Gemini.",
+  "requestFramePermissions": []
+}
