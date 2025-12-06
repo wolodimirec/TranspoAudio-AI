@@ -16,19 +16,25 @@ export const useAudioEngine = () => {
     pitch: 0,
     tempo: 1.0,
     volume: 0, // 0dB
+    isVocalRemoving: false,
   });
 
   // Tone.js References
   const playerRef = useRef<Tone.Player | null>(null);
   const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
   const meterRef = useRef<Tone.Meter | null>(null);
+  const crossFadeRef = useRef<Tone.CrossFade | null>(null);
   
   // Animation frame for tracking time
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Initialize Tone Chain
-    // Chain: Player -> PitchShift -> Meter -> Destination
+    // Graph Overview:
+    // Player -> [Splitter] -> (Left) + (-Right) -> [MonoSum] -> [KaraokeGain] -> CrossFade(B)
+    // Player -----------------------------------------------------------------> CrossFade(A)
+    // CrossFade -> PitchShift -> Meter -> Destination
+
     const pitchShift = new Tone.PitchShift({
       pitch: 0,
       windowSize: 0.1,
@@ -36,18 +42,58 @@ export const useAudioEngine = () => {
       feedback: 0
     }).toDestination();
     
-    const player = new Tone.Player().connect(pitchShift);
     const meter = new Tone.Meter();
-    pitchShift.connect(meter); // Connect for visualization if needed later
+    pitchShift.connect(meter);
 
+    const player = new Tone.Player();
+    
+    // Create CrossFade to switch between Normal (A) and VocalRemoved (B)
+    const crossFade = new Tone.CrossFade(0); // 0 = 100% A (Normal)
+    crossFade.connect(pitchShift);
+
+    // --- Path A: Normal ---
+    player.connect(crossFade.a);
+
+    // --- Path B: Vocal Remover (Center Channel Cancellation) ---
+    // 1. Split Stereo
+    const split = new Tone.Split();
+    player.connect(split);
+
+    // 2. Invert Right Channel and Sum with Left
+    // We sum Left (positive) and Right (negative).
+    // Note: Tone.Gain sums its inputs.
+    const rightInvert = new Tone.Gain(-1);
+    const monoSum = new Tone.Gain(1); 
+    
+    // Connect Split Left (output 0) to Sum
+    split.connect(monoSum, 0, 0);
+    
+    // Connect Split Right (output 1) to Inverter, then to Sum
+    split.connect(rightInvert, 1, 0);
+    rightInvert.connect(monoSum);
+
+    // 3. Compensation Gain (L-R signals are often quieter)
+    // Connecting Mono Sum to CrossFade B
+    const compensationGain = new Tone.Gain(2.0); // Boost volume slightly
+    monoSum.connect(compensationGain);
+    compensationGain.connect(crossFade.b);
+
+    // Save refs
     playerRef.current = player;
     pitchShiftRef.current = pitchShift;
     meterRef.current = meter;
+    crossFadeRef.current = crossFade;
 
     return () => {
+      // Cleanup
       player.dispose();
       pitchShift.dispose();
       meter.dispose();
+      crossFade.dispose();
+      split.dispose();
+      rightInvert.dispose();
+      monoSum.dispose();
+      compensationGain.dispose();
     };
   }, []);
 
@@ -80,15 +126,6 @@ export const useAudioEngine = () => {
       playerRef.current.stop();
       setAudioState(prev => ({ ...prev, isPlaying: false }));
     } else {
-      // Start from current seek position if handled, currently starts from 0 or last offset
-      // For simplicity in this demo, we handle pause as stop-maintain-offset logic in a real app, 
-      // but Tone.Player.start(now, offset) is the way.
-      // Here we implement basic Play/Stop logic.
-      
-      // If we want resume functionality, Tone.Player doesn't natively "pause". 
-      // We would track offset. For this specific request, restart or stop is acceptable, 
-      // but let's try to be smart.
-      
       const startOffset = audioState.currentTime >= audioState.duration ? 0 : audioState.currentTime;
       playerRef.current.start(undefined, startOffset);
       setAudioState(prev => ({ ...prev, isPlaying: true }));
@@ -108,11 +145,12 @@ export const useAudioEngine = () => {
       }
 
       if (playerRef.current && newSettings.volume !== undefined) {
-        // Linear 0-1 to Decibels? No, Tone uses dB. 
-        // Let's assume UI passes raw gain 0-1, we map to dB range like -60 to 0
-        // Or simply mapped value.
-        // For this demo, let's assume input is volume in dB
         playerRef.current.volume.value = newSettings.volume; 
+      }
+
+      if (crossFadeRef.current && newSettings.isVocalRemoving !== undefined) {
+        // Smooth crossfade to avoid clicks
+        crossFadeRef.current.fade.rampTo(newSettings.isVocalRemoving ? 1 : 0, 0.1);
       }
 
       return updated;
@@ -121,17 +159,7 @@ export const useAudioEngine = () => {
 
   // Time Tracking Loop
   const updateLoop = useCallback(() => {
-    if (playerRef.current && playerRef.current.state === 'started') {
-      // Tone.Transport.seconds is global, Player doesn't track its own cursor cleanly without Transport
-      // However, we can use Tone.now() logic if we tracked start time.
-      // Easier hack: approximate or use Transport. 
-      // Since we aren't using Transport, we just won't have a perfect progress bar for this MVP 
-      // unless we manually calculate: (Date.now() - startTime) * rate.
-      
-      // Let's rely on basic visual feedback or simplify.
-      // Actually, standard Tone.Player usage implies we trust the user listens. 
-      // But let's try to update state occasionally for the UI progress bar.
-    }
+    // Optional: Add logic here to track playback time if needed for UI progress
     requestRef.current = requestAnimationFrame(updateLoop);
   }, []);
 

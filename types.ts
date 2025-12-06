@@ -11,6 +11,7 @@ export interface AudioSettings {
   pitch: number; // Semitones (-12 to +12)
   tempo: number; // Multiplier (0.5 to 2.0)
   volume: number; // Decibels or linear gain (0 to 1)
+  isVocalRemoving: boolean; // Toggle for Karaoke/Vocal Removal effect
 }
 
 export interface GeminiAnalysisResult {

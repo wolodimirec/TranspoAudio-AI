@@ -1,6 +1,6 @@
 import React from 'react';
 import { AudioSettings } from '../types';
-import { Minus, Plus, Gauge, Music2 } from 'lucide-react';
+import { Minus, Plus, Gauge, Music2, MicOff, Mic } from 'lucide-react';
 
 interface ControlsProps {
   settings: AudioSettings;
@@ -123,6 +123,45 @@ export const Controls: React.FC<ControlsProps> = ({ settings, onUpdate, disabled
             </button>
         </div>
       </div>
+
+      <div className="h-px bg-slate-700/50" />
+
+      {/* Vocal Remover Control */}
+      <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {settings.isVocalRemoving ? (
+                <MicOff className="w-5 h-5 text-rose-400" />
+            ) : (
+                <Mic className="w-5 h-5 text-slate-400" />
+            )}
+            <div className="flex flex-col">
+                <span className={`font-medium tracking-wide ${settings.isVocalRemoving ? 'text-rose-400' : 'text-slate-200'}`}>
+                    Usuń Wokal
+                </span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest">
+                    Efekt Karaoke (Stereo)
+                </span>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => onUpdate({ isVocalRemoving: !settings.isVocalRemoving })}
+            disabled={disabled}
+            className={`
+                relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:ring-offset-2 focus:ring-offset-slate-900
+                ${settings.isVocalRemoving ? 'bg-rose-500' : 'bg-slate-700'}
+                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+          >
+            <span
+              className={`
+                inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                ${settings.isVocalRemoving ? 'translate-x-6' : 'translate-x-1'}
+              `}
+            />
+          </button>
+      </div>
+
     </div>
   );
 };
