@@ -15,11 +15,11 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 export const analyzeAudioTrack = async (file: File): Promise<GeminiAnalysisResult> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing via process.env.API_KEY");
+  if (!process.env.GEM_KEY) {
+    throw new Error("API Key is missing via process.env.GEM_KEY");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEM_KEY });
   const base64Data = await blobToBase64(file);
 
   // We trim the file size limit logic for simplicity, assuming reasonable MP3 uploads.
